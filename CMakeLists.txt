@@ -24,13 +24,60 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-add_executable(RPO
-  src/main.cpp
-  src/custom_octree.cpp
+add_executable(Parameters
+  test/parameters_test.cpp
+  src/parameters.cpp
 )
 
-target_link_libraries(RPO
+target_link_libraries(Parameters
+  ${catkin_LIBRARIES}
+)
+
+add_executable(Preprocessor
+  test/preprocessor_test.cpp
+  src/augmented_model.cpp
+  src/parameters.cpp
+)
+
+target_link_libraries(Preprocessor
+  ${catkin_LIBRARIES}
+)
+
+add_executable(Calculator
+  test/calculator_test.cpp
+  src/dose_calculator.cpp
+  src/augmented_model.cpp
+  src/parameters.cpp
+)
+
+target_link_libraries(Calculator
   ${catkin_LIBRARIES}
   OpenMP::OpenMP_CXX
 )
+
+add_executable(Visualizer
+  test/visualizer_test.cpp
+  src/ros_visualizer.cpp
+  src/dose_calculator.cpp
+  src/augmented_model.cpp
+  src/parameters.cpp
+)
+
+target_link_libraries(Visualizer
+  ${catkin_LIBRARIES}
+  OpenMP::OpenMP_CXX
+)
+
+
+
+#add_executable(RPO
+#  src/main.cpp
+#  src/extended_octree.cpp
+#  src/augmented_model.cpp
+#)
+
+# target_link_libraries(RPO
+#   ${catkin_LIBRARIES}
+#   OpenMP::OpenMP_CXX
+# )
 
