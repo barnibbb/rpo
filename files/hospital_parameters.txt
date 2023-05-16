@@ -1,0 +1,47 @@
+Paths
+model path: /home/barni/rpo_ws/src/rpo/models/hospital_model.ot
+coarse lamp model: /home/barni/rpo_ws/src/rpo/files/input/coarse_lamp_model.csv
+fine lamp model: /home/barni/rpo_ws/src/rpo/files/input/fine_lamp_model.csv
+precomputation folder: /home/barni/rpo_ws/src/rpo/files/irradiance_values/
+
+3D model
+depth: 15
+resolution: 0.1
+reachable region x: 0.0
+reachable region y: 0.0
+smooth model: true
+
+Dose calculation
+lamp height: 1.2
+lamp offset: 0.55
+lamp range: 20
+lamp power: 80
+final_calculation: false
+precompute irradiance: true
+precomputation grid depth: 13
+ray tracing: 2
+
+Plan generation
+number of positions: 1
+plan element size: 3
+max generations: 10
+population size: 50
+exposure limit: 280
+coverage: 0.8
+overall time: 1800
+number of crossovers: 20
+number of mutations: 10
+gene mutation probability: 0.5
+coordinate mutation parameter: 0.3
+time mutation parameter: 0.2
+crossover: 0
+mutation: 1
+crossover selection: 0
+mutation selection: 0
+survival selection: 3
+min distance from obstacles: 0.3
+
+Extra
+delete ceiling: true
+expand model: true
+modify normals: true
