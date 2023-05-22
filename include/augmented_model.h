@@ -85,7 +85,7 @@ namespace rpo
 
         // Data memebers -------------------------------------------------------------
     
-        shared_ptr<Parameters> m_parameters = nullptr;
+        Parameters m_parameters;
 
         shared_ptr<ColorOcTree> m_color_octree = nullptr;
 

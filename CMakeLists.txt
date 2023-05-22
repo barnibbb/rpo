@@ -46,7 +46,7 @@ target_link_libraries(Preprocessor
 add_executable(Calculator
   test/calculator_test.cpp
   src/dose_calculator.cpp
-  src/augmented_model.cpp
+  src/augmented_octree.cpp
   src/parameters.cpp
 )
 
@@ -59,13 +59,22 @@ add_executable(Visualizer
   test/visualizer_test.cpp
   src/ros_visualizer.cpp
   src/dose_calculator.cpp
-  src/augmented_model.cpp
+  src/augmented_octree.cpp
   src/parameters.cpp
 )
 
 target_link_libraries(Visualizer
   ${catkin_LIBRARIES}
   OpenMP::OpenMP_CXX
+)
+
+add_executable(Test
+  test/augmented_octree_test.cpp
+  src/augmented_octree.cpp
+)
+
+target_link_libraries(Test
+  ${catkin_LIBRARIES}
 )
 
 

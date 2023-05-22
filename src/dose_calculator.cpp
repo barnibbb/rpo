@@ -4,32 +4,34 @@ using namespace std;
 
 namespace rpo
 {
-    DoseCalculator::DoseCalculator(const AugmentedModel& augmented_model)
-    {
-        m_augmented_model = make_shared<AugmentedModel>(augmented_model);
+    using NodePtr = rpo::AugmentedOcTreeNode*;
 
-        m_parameters = make_shared<Parameters>(*(m_augmented_model->m_parameters));
+    DoseCalculator::DoseCalculator(const AugmentedOcTree& augmented_model)
+    {
+        m_augmented_model = make_shared<AugmentedOcTree>(augmented_model);
+
+        m_parameters = m_augmented_model->getParameters();
     }
 
 
     void DoseCalculator::computeDoseForPlan(RadiationPlan& radiation_plan)
     {
-        const int element_size = m_parameters->plan_element_size;
+        const int element_size = m_parameters.plan_element_size;
 
         vector<double> elements = radiation_plan.first;
 
-        vector<ExposureMap> exposure_maps(m_parameters->number_of_positions);
+        vector<ExposureMap> exposure_maps(m_parameters.number_of_positions);
 
-        const double z = m_parameters->ground_level + m_parameters->resolution / 2 +
-            m_parameters->lamp_offset + m_parameters->lamp_height / 2;
+        const double z = m_parameters.ground_level + m_parameters.resolution / 2 +
+            m_parameters.lamp_offset + m_parameters.lamp_height / 2;
 
         for (int i = 0; i < elements.size(); i += element_size)
         {
-            point3d lamp_position(elements[i], elements[i + 1], m_parameters->ground_level);
+            point3d lamp_position(elements[i], elements[i + 1], m_parameters.ground_level);
 
             OcTreeKey key; 
 
-            m_augmented_model->coordToKeyChecked(lamp_position, m_parameters->depth, key);
+            m_augmented_model->coordToKeyChecked(lamp_position, m_parameters.depth, key);
 
             if (m_augmented_model->isGroundZoneElement(key))
             {
@@ -50,14 +52,14 @@ namespace rpo
                 element.second += exposure_maps[i][element.first];
             }
 
-            if (element.second > m_parameters->exposure_limit)
+            if (element.second > m_parameters.exposure_limit)
             {
                 over_limit += 1;
             }
         }
 
         radiation_plan.second = static_cast<double>(over_limit) / 
-            static_cast<double>(m_augmented_model->m_reachable_elements.size());
+            static_cast<double>(m_augmented_model->getReachableElements().size());
     }
 
 
@@ -67,9 +69,9 @@ namespace rpo
 
         OcTreeKey plan_element_key;
 
-        m_augmented_model->coordToKeyChecked(plan_element.first, m_parameters->depth, plan_element_key);
+        m_augmented_model->coordToKeyChecked(plan_element.first, m_parameters.depth, plan_element_key);
 
-        if (m_parameters->precompute_irradiance)
+        if (m_parameters.precompute_irradiance)
         {
             double min_distance = numeric_limits<double>::max();
 
@@ -77,7 +79,7 @@ namespace rpo
 
             for (const auto& element : m_radiation_positions)
             {
-                const point3d grid_position = m_augmented_model->keyToCoord(element, m_parameters->depth);
+                const point3d grid_position = m_augmented_model->keyToCoord(element, m_parameters.depth);
             
                 const double distance = (grid_position - plan_element.first).norm();
 
@@ -117,7 +119,7 @@ namespace rpo
     {
         ExposureMap irradiance_map;
     
-        KeySet reachable_elements = m_augmented_model->m_reachable_elements;
+        KeySet reachable_elements = m_augmented_model->getReachableElements();
 
         for (const auto& element : reachable_elements)
         {
@@ -130,22 +132,24 @@ namespace rpo
 
     double DoseCalculator::computeIrradianceForElement(const point3d& lamp_position, const OcTreeKey& key) const
     {
-        const point3d point = m_augmented_model->keyToCoord(key, m_parameters->depth);
+        const point3d point = m_augmented_model->keyToCoord(key, m_parameters.depth);
 
         const double distance = (point - lamp_position).norm();
 
-        if ((!isnan(distance) && distance < m_parameters->lamp_range))
+        if ((!isnan(distance) && distance < m_parameters.lamp_range))
         {
-            const point3d normal = m_augmented_model->m_surface_normals[key];
+            NodePtr node = m_augmented_model->search(key, m_parameters.depth);
+
+            const point3d normal = node->getNormal();
 
             if (!isnan(normal.norm()))
             {
                 double irradiance = 0;
 
-                const double L = m_parameters->resolution;
+                const double L = m_parameters.resolution;
 
-                const double coefficient = m_parameters->lamp_power / 
-                    (4 * M_PI * m_parameters->lamp_height);
+                const double coefficient = m_parameters.lamp_power / 
+                    (4 * M_PI * m_parameters.lamp_height);
 
                 point3d center = lamp_position;
 
@@ -153,7 +157,7 @@ namespace rpo
                 {
                     center.z() = m_ray_origins[i];
 
-                    if (!m_parameters->expand_model || (m_parameters->expand_model && 
+                    if (!m_parameters.expand_model || (m_parameters.expand_model && 
                         (point - center).dot(normal) <= 0))
                     {
                         const point3d pd = point - center;
@@ -170,7 +174,7 @@ namespace rpo
 
                         bool visible = false;
 
-                        switch (m_parameters->ray_traing)
+                        switch (m_parameters.ray_traing)
                         {
                             case RayTracing::None:
                             {
@@ -215,7 +219,9 @@ namespace rpo
 
     bool DoseCalculator::compute3DVisibility(const point3d& lamp_position, const point3d& element, const double distance) const
     {
-        const double resolution = m_parameters->resolution + 0.01;
+        const double resolution = m_parameters.resolution + 0.01;
+
+        const int depth = m_parameters.depth;
 
         const point3d direction = lamp_position - element;
 
@@ -228,7 +234,7 @@ namespace rpo
         point3d end_point;
 
         if (m_augmented_model->checkRayCast(false, lamp_position, origin, 
-            target_direction, end_point, distance, resolution, true))
+            target_direction, end_point, distance, depth, resolution, true))
         {
             offset = (direction.y() >= 0) ? resolution : -resolution;
 
@@ -237,7 +243,7 @@ namespace rpo
             target_direction = lamp_position - origin;
 
             if (m_augmented_model->checkRayCast(false, lamp_position, origin, 
-                target_direction, end_point, distance, resolution, true))
+                target_direction, end_point, distance, depth, resolution, true))
             {
                 offset = (direction.z() >= 0) ? resolution : -resolution;
 
@@ -246,7 +252,7 @@ namespace rpo
                 target_direction = lamp_position - origin; 
                 
                 if (m_augmented_model->checkRayCast(true, lamp_position, origin, 
-                    target_direction, end_point, distance, resolution, true))
+                    target_direction, end_point, distance, depth, resolution, true))
                 {
                     return true;
                 }
@@ -269,7 +275,7 @@ namespace rpo
     {
         ExposureMap irradiance_map;
 
-        const string input_file = m_parameters->precomputation_folder +
+        const string input_file = m_parameters.precomputation_folder +
             to_string(plan_element_key[0]) + "_" + 
             to_string(plan_element_key[1]) + "_" +
             to_string(plan_element_key[2]) + ".txt";
@@ -304,7 +310,7 @@ namespace rpo
     
     void DoseCalculator::saveIrradianceMap(const OcTreeKey& plan_element_key, const ExposureMap& irradiance_map)
     {
-        const string output_file = m_parameters->precomputation_folder + 
+        const string output_file = m_parameters.precomputation_folder + 
             to_string(plan_element_key[0]) + "_" + 
             to_string(plan_element_key[1]) + "_" + 
             to_string(plan_element_key[2]) + ".txt";
@@ -328,20 +334,28 @@ namespace rpo
 
     void DoseCalculator::preComputeIrradianceMaps()
     {
-        const double z = m_parameters->ground_level + m_parameters->resolution / 2 +
-            m_parameters->lamp_offset + m_parameters->lamp_height / 2;
+        const double z = m_parameters.ground_level + m_parameters.resolution / 2 +
+            m_parameters.lamp_offset + m_parameters.lamp_height / 2;
 
         vector<OcTreeKey> grid_vector;
 
-        for (const auto& key : m_augmented_model->m_grid_elements)
+        //for (const auto& key : m_augmented_model->m_grid_elements)
+        for (AugmentedOcTree::leaf_iterator it = m_augmented_model->begin_leafs(),
+            end = m_augmented_model->end_leafs(); it != end; ++it)
         {
-            grid_vector.push_back(key);
+            if (NodePtr node = m_augmented_model->search(it.getKey()); node != nullptr)
+            {
+                if (node->isGrid())
+                {
+                    grid_vector.push_back(it.getKey());
+                }
+            }
         }
 
         #pragma omp parallel for
         for (int i = 0; i < grid_vector.size(); ++i)
         {
-            point3d position = m_augmented_model->keyToCoord(grid_vector[i], m_parameters->depth);
+            point3d position = m_augmented_model->keyToCoord(grid_vector[i], m_parameters.depth);
 
             position.z() = z;
 
@@ -349,7 +363,7 @@ namespace rpo
 
             OcTreeKey plan_element_key;
 
-            m_augmented_model->coordToKeyChecked(position, m_parameters->depth, plan_element_key);
+            m_augmented_model->coordToKeyChecked(position, m_parameters.depth, plan_element_key);
 
             saveIrradianceMap(plan_element_key, irradiance_map);
         }
@@ -360,7 +374,7 @@ namespace rpo
     {
         for (const auto& position_key : m_radiation_positions)
         {
-            const string file = m_parameters->precomputation_folder + 
+            const string file = m_parameters.precomputation_folder + 
                 to_string(position_key[0]) + "_" + 
                 to_string(position_key[1]) + "_" + 
                 to_string(position_key[2]) + ".txt";
@@ -374,19 +388,18 @@ namespace rpo
 
     void DoseCalculator::computeRayOrigins()
     {
-        double height = m_parameters->ground_level + 
-            m_parameters->resolution / 2.0 + m_parameters->lamp_offset;
+        double height = m_parameters.ground_level + 
+            m_parameters.resolution / 2.0 + m_parameters.lamp_offset;
 
-        const double top_of_lamp = m_parameters->ground_level + 
-            m_parameters->resolution / 2.0 + m_parameters->lamp_offset + 
-            m_parameters->lamp_height;
+        const double top_of_lamp = m_parameters.ground_level + 
+            m_parameters.resolution / 2.0 + m_parameters.lamp_offset + 
+            m_parameters.lamp_height;
 
         point3d continuous_height(0, 0, height);
 
-        if (OcTreeKey key; m_augmented_model->coordToKeyChecked(
-            continuous_height, m_parameters->depth, key))
+        if (OcTreeKey key; m_augmented_model->coordToKeyChecked(continuous_height, m_parameters.depth, key))
         {
-            point3d discrete_height = m_augmented_model->keyToCoord(key, m_parameters->depth);
+            point3d discrete_height = m_augmented_model->keyToCoord(key, m_parameters.depth);
 
             double height = discrete_height.z();
 
@@ -396,7 +409,7 @@ namespace rpo
 
                 cout << height << endl;
 
-                height += m_parameters->resolution;
+                height += m_parameters.resolution;
             }
         }
     }

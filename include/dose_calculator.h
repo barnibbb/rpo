@@ -5,7 +5,7 @@
 
 #include <boost/algorithm/string.hpp>
 
-#include "augmented_model.h"
+#include "augmented_octree.h"
 
 using namespace std;
 
@@ -18,7 +18,7 @@ namespace rpo
     class DoseCalculator
     {
     public:
-        DoseCalculator(const AugmentedModel& augmented_model);
+        DoseCalculator(const AugmentedOcTree& augmented_model);
 
         void computeDoseForPlan(RadiationPlan& radiation_plan);
         ExposureMap computeDoseForPlanElement(const PlanElement& plan_element);
@@ -36,9 +36,9 @@ namespace rpo
         void computeRayOrigins();
 
     protected:
-        shared_ptr<Parameters> m_parameters = nullptr;
+        Parameters m_parameters;
 
-        shared_ptr<AugmentedModel> m_augmented_model = nullptr;
+        shared_ptr<AugmentedOcTree> m_augmented_model = nullptr;
 
         vector<double> m_ray_origins;
 

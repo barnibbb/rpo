@@ -7,7 +7,7 @@ static const float B[] = { 0.329415f, 0.335427f, 0.341379f, 0.347269f, 0.353093f
 
 namespace rpo
 {
-    ROSVisualizer::ROSVisualizer(const AugmentedModel& augmented_model) : DoseCalculator(augmented_model)
+    ROSVisualizer::ROSVisualizer(const AugmentedOcTree& augmented_model) : DoseCalculator(augmented_model)
     {
         m_model_publisher = m_node_handle.advertise<octomap_msgs::Octomap>("/exposure_map", 10);
     }
@@ -17,13 +17,13 @@ namespace rpo
     {
         ifstream file;
 
-        if (m_parameters->expand_model)
+        if (m_parameters.expand_model)
         {
-            file.open(m_parameters->fine_lamp_model);
+            file.open(m_parameters.fine_lamp_model);
         }
         else
         {
-            file.open(m_parameters->coarse_lamp_model);
+            file.open(m_parameters.coarse_lamp_model);
         }
 
         if (file.is_open())
@@ -56,13 +56,13 @@ namespace rpo
     {
         OcTreeKey key;
 
-        const double resolution = m_parameters->resolution;
+        const double resolution = m_parameters.resolution;
 
-        point3d base(x, y, m_parameters->ground_level + resolution);
+        point3d base(x, y, m_parameters.ground_level + resolution);
 
-        m_augmented_model->coordToKeyChecked(base, m_parameters->depth, key);
+        m_augmented_model->coordToKeyChecked(base, m_parameters.depth, key);
 
-        base = m_augmented_model->keyToCoord(key, m_parameters->depth);
+        base = m_augmented_model->keyToCoord(key, m_parameters.depth);
 
         for (const LampModelElement& element : m_lamp_model)
         {
@@ -71,19 +71,32 @@ namespace rpo
                 element.y * resolution, 
                 element.z * resolution);
             
-            const Color color = element.color ? Color(255, 0, 255) : Color(80, 80, 80);
+            const octomap::ColorOcTreeNode::Color color = element.color ? 
+                octomap::ColorOcTreeNode::Color(255, 0, 255) : 
+                octomap::ColorOcTreeNode::Color(80, 80, 80);
 
-            m_augmented_model->createNode(lamp_point, color);
+            NodePtr node = m_augmented_model->search(lamp_point, m_parameters.depth);
 
-            m_augmented_model->coordToKeyChecked(lamp_point, m_parameters->depth, key);
+            if (node == nullptr)
+            {
+                m_augmented_model->updateNode(lamp_point, true);
+                node = m_augmented_model->search(lamp_point, m_parameters.depth);
+            }
+
+            m_augmented_model->expandNode(node);
+            m_augmented_model->pruneNode(node);
+
+            node->setColor(color);
+
+            m_augmented_model->coordToKeyChecked(lamp_point, m_parameters.depth, key);
 
             // All nodes that belong to placed lamps are stored.
             m_placed_lamps.insert(key);
         }
 
-        if (m_parameters->expand_model) 
+        if (m_parameters.expand_model) 
         {
-            m_augmented_model->m_color_octree->expand();
+            m_augmented_model->expand();
         }
     }
 
@@ -92,11 +105,11 @@ namespace rpo
     {
         for (const auto& key : m_placed_lamps)
         {
-            NodePtr node = m_augmented_model->m_color_octree->search(key, m_parameters->depth);
+            NodePtr node = m_augmented_model->search(key, m_parameters.depth);
 
             if (node != nullptr)
             {
-                m_augmented_model->m_color_octree->deleteNode(key, m_parameters->depth);
+                m_augmented_model->deleteNode(key, m_parameters.depth);
             }
         }
     }
@@ -104,14 +117,14 @@ namespace rpo
 
     void ROSVisualizer::showResult(RadiationPlan& radiation_plan)
     {
-        const int element_size = m_parameters->plan_element_size;
+        const int element_size = m_parameters.plan_element_size;
 
         vector<double> elements = radiation_plan.first;
 
-        vector<ExposureMap> exposure_maps(m_parameters->number_of_positions);
+        vector<ExposureMap> exposure_maps(m_parameters.number_of_positions);
 
-        const double z = m_parameters->ground_level + m_parameters->resolution / 2 +
-            m_parameters->lamp_offset + m_parameters->lamp_height / 2;
+        const double z = m_parameters.ground_level + m_parameters.resolution / 2 +
+            m_parameters.lamp_offset + m_parameters.lamp_height / 2;
 
         #pragma omp parallel for
         for (int i = 0; i < elements.size(); i += element_size)
@@ -137,17 +150,17 @@ namespace rpo
                 element.second += exposure_maps[i][element.first];
             }
 
-            if (element.second > m_parameters->exposure_limit)
+            if (element.second > m_parameters.exposure_limit)
             {
                 over_limit += 1;
             }
         }
 
         radiation_plan.second = static_cast<double>(over_limit) / 
-            static_cast<double>(m_augmented_model->m_reachable_elements.size());
+            static_cast<double>(m_augmented_model->getReachableElements().size());
 
 
-        if (m_parameters->final_calculation)
+        if (m_parameters.final_calculation)
         {
             setModelColor(exposure_maps[0], false);
         }
@@ -168,11 +181,11 @@ namespace rpo
 
             if (m_placed_lamps.find(key) == m_placed_lamps.end())
             {
-                NodePtr node = m_augmented_model->m_color_octree->search(key, m_parameters->depth);
+                NodePtr node = m_augmented_model->search(key, m_parameters.depth);
 
                 if (node != nullptr)
                 {
-                    if (exposure >= m_parameters->exposure_limit)
+                    if (exposure >= m_parameters.exposure_limit)
                     {
                         node->setColor(
                             static_cast<int>(255 * R[255]),
@@ -183,7 +196,7 @@ namespace rpo
                     {
                         if (viridis)
                         {
-                            const int scale = static_cast<int>(round(255 * exposure / m_parameters->exposure_limit));
+                            const int scale = static_cast<int>(round(255 * exposure / m_parameters.exposure_limit));
 
                             node->setColor(
                                 static_cast<int>(255 * R[scale]),
@@ -213,12 +226,12 @@ namespace rpo
             octomap_msgs::Octomap message;
 
             stringstream data_stream;
-            m_augmented_model->m_color_octree->writeData(data_stream);
+            m_augmented_model->writeData(data_stream);
             string data_string = data_stream.str();
 
             message.data = vector<int8_t>(data_string.begin(), data_string.end());
-            message.resolution = m_augmented_model->m_color_octree->getResolution();
-            message.id = m_augmented_model->m_color_octree->getTreeType();
+            message.resolution = m_augmented_model->getResolution();
+            message.id = m_augmented_model->getTreeType();
             message.binary = false;
             message.header.frame_id = "map";
             message.header.stamp = ros::Time();

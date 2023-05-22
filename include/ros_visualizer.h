@@ -8,12 +8,14 @@ using namespace std;
 
 namespace rpo
 {
+    using NodePtr = AugmentedOcTreeNode*;
+
     struct LampModelElement { int x, y, z; bool color; };
 
     class ROSVisualizer : public DoseCalculator
     {
     public:
-        ROSVisualizer(const AugmentedModel& augmented_model);
+        ROSVisualizer(const AugmentedOcTree& augmented_model);
 
         void readLampModel();
         void placeLamp(double x, double y);

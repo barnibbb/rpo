@@ -6,9 +6,9 @@ namespace rpo
 {
     AugmentedModel::AugmentedModel(const Parameters& parameters)
     {
-        m_parameters = make_shared<Parameters>(parameters);
+        m_parameters = parameters;
 
-        ifstream file(m_parameters->model_path);
+        ifstream file(m_parameters.model_path);
 
         if (file.is_open())
         {
@@ -18,7 +18,7 @@ namespace rpo
                 end = m_color_octree->end_leafs(); it != end; ++it)
             {
                 // All nodes that are pruned (i.e. are on a smaller depth level) are expanded.
-                if (it.getDepth() < m_parameters->depth)
+                if (it.getDepth() < m_parameters.depth)
                 {
                     NodePtr node = m_color_octree->search(it.getKey(), it.getDepth());
 
@@ -35,17 +35,17 @@ namespace rpo
             m_color_octree->getMetricMax(
                 m_model_size.max_x, m_model_size.max_y, m_model_size.max_z);
 
-            if (m_parameters->delete_ceiling)
+            if (m_parameters.delete_ceiling)
             {
                 deleteCeiling();
             }
 
-            if (m_parameters->smooth_model)
+            if (m_parameters.smooth_model)
             {
                 smoothModel();
             }
 
-            if (m_parameters->expand_model)
+            if (m_parameters.expand_model)
             {
                 expandModel();
             }
@@ -80,14 +80,14 @@ namespace rpo
 
         for (const auto& key : elements_to_delete)
         {
-            m_color_octree->deleteNode(key, m_parameters->depth);
+            m_color_octree->deleteNode(key, m_parameters.depth);
         }
     }
 
 
     void AugmentedModel::smoothModel()
     {
-        const float resolution = m_parameters->resolution;
+        const float resolution = m_parameters.resolution;
 
         const vector<point3d> steps { 
             { -resolution, 0, 0 }, { resolution, 0, 0 }, 
@@ -118,9 +118,9 @@ namespace rpo
 
                         OcTreeKey neighbor_key;
 
-                        m_color_octree->coordToKeyChecked(neighbor, m_parameters->depth, neighbor_key);
+                        m_color_octree->coordToKeyChecked(neighbor, m_parameters.depth, neighbor_key);
 
-                        if (NodePtr node = m_color_octree->search(neighbor_key, m_parameters->depth); node != nullptr)
+                        if (NodePtr node = m_color_octree->search(neighbor_key, m_parameters.depth); node != nullptr)
                         {
                             if (elements_of_plane.find(neighbor_key) == elements_of_plane.end())
                             {
@@ -162,9 +162,9 @@ namespace rpo
 
                     point3d upper = middle + point3d(0, 0, resolution);
 
-                    if (NodePtr middle_node = m_color_octree->search(middle, m_parameters->depth); middle_node != nullptr)
+                    if (NodePtr middle_node = m_color_octree->search(middle, m_parameters.depth); middle_node != nullptr)
                     {
-                        if (NodePtr upper_node = m_color_octree->search(upper, m_parameters->depth); upper_node == nullptr)
+                        if (NodePtr upper_node = m_color_octree->search(upper, m_parameters.depth); upper_node == nullptr)
                         {
                             bool ok = true;
 
@@ -172,7 +172,7 @@ namespace rpo
                             {
                                 point3d neighbor = middle + step;
 
-                                if (NodePtr n_node = m_color_octree->search(neighbor, m_parameters->depth); n_node == nullptr)
+                                if (NodePtr n_node = m_color_octree->search(neighbor, m_parameters.depth); n_node == nullptr)
                                 {
                                     ok = false;
                                     break;
@@ -183,7 +183,7 @@ namespace rpo
                             {
                                 OcTreeKey middle_key;
 
-                                m_color_octree->coordToKeyChecked(middle, m_parameters->depth, middle_key);
+                                m_color_octree->coordToKeyChecked(middle, m_parameters.depth, middle_key);
 
                                 if (elements_to_delete.find(middle_key) == elements_to_delete.end())
                                 {
@@ -198,11 +198,11 @@ namespace rpo
 
         for (const auto& element : elements_to_delete)
         {
-            NodePtr node = m_color_octree->search(element, m_parameters->depth);
+            NodePtr node = m_color_octree->search(element, m_parameters.depth);
             
             if (node != nullptr)
             {
-                m_color_octree->deleteNode(element, m_parameters->depth);
+                m_color_octree->deleteNode(element, m_parameters.depth);
             }
         }
     }
@@ -210,15 +210,15 @@ namespace rpo
 
     void AugmentedModel::expandModel()
     {
-        m_parameters->depth += 1;
-        m_parameters->resolution /= 2;
+        m_parameters.depth += 1;
+        m_parameters.resolution /= 2;
 
         m_color_octree->expand();
 
         for (ColorOcTree::leaf_iterator it = m_color_octree->begin_leafs(), 
             end = m_color_octree->end_leafs(); it != end; ++it)
         {
-            NodePtr node = m_color_octree->search(it.getKey(), m_parameters->depth - 1);
+            NodePtr node = m_color_octree->search(it.getKey(), m_parameters.depth - 1);
 
             if (node != nullptr)
             {
@@ -238,7 +238,7 @@ namespace rpo
         {
             const point3d point = it.getCoordinate();
 
-            if (NodePtr node = m_color_octree->search(point, m_parameters->depth); node != nullptr)
+            if (NodePtr node = m_color_octree->search(point, m_parameters.depth); node != nullptr)
             {
                 node->setColor(0, 0, 0);
             }
@@ -264,10 +264,10 @@ namespace rpo
                 ++level_counter;
             }
 
-            if ((!m_parameters->expand_model && level_counter == 1) || 
-                 (m_parameters->expand_model && level_counter == 2))
+            if ((!m_parameters.expand_model && level_counter == 1) || 
+                 (m_parameters.expand_model && level_counter == 2))
             {
-                m_parameters->ground_level = height.first;
+                m_parameters.ground_level = height.first;
 
                 break;
             }
@@ -277,7 +277,7 @@ namespace rpo
 
     void AugmentedModel::computeGroundZone()
     {
-        const float resolution = m_parameters->resolution;
+        const float resolution = m_parameters.resolution;
 
         KeySet ground_zone;
 
@@ -286,7 +286,7 @@ namespace rpo
         {
             point3d point = it.getCoordinate();
 
-            if (point.z() == m_parameters->ground_level)
+            if (point.z() == m_parameters.ground_level)
             {
                 m_ground_level_elements.insert(it.getKey());
 
@@ -294,8 +294,8 @@ namespace rpo
 
                 bool ground = true;
 
-                const double lamp_top = m_parameters->ground_level + m_parameters->resolution +
-                    m_parameters->lamp_offset + m_parameters->lamp_height;
+                const double lamp_top = m_parameters.ground_level + m_parameters.resolution +
+                    m_parameters.lamp_offset + m_parameters.lamp_height;
 
                 while (point.z() < lamp_top)
                 {
@@ -321,7 +321,7 @@ namespace rpo
 
         for (const auto& key : ground_zone)
         {
-            const point3d center = m_color_octree->keyToCoord(key, m_parameters->depth);
+            const point3d center = m_color_octree->keyToCoord(key, m_parameters.depth);
 
             bool ground = true;
 
@@ -330,7 +330,7 @@ namespace rpo
             // a given region also belong to the ground zone, then the center
             // is considered as real ground zone element.
             int min_dist = static_cast<int>(
-                m_parameters->min_distance_from_obstacles / m_parameters->resolution);
+                m_parameters.min_distance_from_obstacles / m_parameters.resolution);
 
             for (int i = -min_dist; i <= min_dist; ++i)
             {
@@ -339,7 +339,7 @@ namespace rpo
                     const point3d neighbor = center + point3d(i * resolution, j * resolution, 0);
 
                     if (OcTreeKey neighbor_key; m_color_octree->coordToKeyChecked(
-                        neighbor, m_parameters->depth, neighbor_key))
+                        neighbor, m_parameters.depth, neighbor_key))
                     {
                         if (ground_zone.find(neighbor_key) == ground_zone.end())
                         {
@@ -363,7 +363,7 @@ namespace rpo
 
     void AugmentedModel::computeReachableElements()
     {
-        const float resolution = m_parameters->resolution;
+        const float resolution = m_parameters.resolution;
 
         const vector<point3d> steps {
             { -resolution, 0, 0 }, { resolution, 0, 0 }, 
@@ -375,14 +375,14 @@ namespace rpo
         KeySet unchecked_points, checked_points;
 
         point3d start_point(
-            m_parameters->reachable_region_x,
-            m_parameters->reachable_region_y, 
-            m_parameters->ground_level + m_parameters->resolution / 2.0 + 
-            m_parameters->lamp_offset + m_parameters->lamp_height / 2.0);
+            m_parameters.reachable_region_x,
+            m_parameters.reachable_region_y, 
+            m_parameters.ground_level + m_parameters.resolution / 2.0 + 
+            m_parameters.lamp_offset + m_parameters.lamp_height / 2.0);
 
         OcTreeKey start_key;
 
-        m_color_octree->coordToKeyChecked(start_point, m_parameters->depth, start_key);
+        m_color_octree->coordToKeyChecked(start_point, m_parameters.depth, start_key);
 
         unchecked_points.insert(start_key);
 
@@ -394,11 +394,11 @@ namespace rpo
 
             for (const auto& center_key : unchecked_points)
             {
-                point3d center_point =  m_color_octree->keyToCoord(center_key, m_parameters->depth);
+                point3d center_point =  m_color_octree->keyToCoord(center_key, m_parameters.depth);
 
                 for (int s = 0; s < steps.size(); ++s)
                 {
-                    if (!(center_point.z() < m_parameters->lamp_offset && s == 5))
+                    if (!(center_point.z() < m_parameters.lamp_offset && s == 5))
                     {
                         point3d neighbor_point = center_point + steps[s];
 
@@ -408,11 +408,11 @@ namespace rpo
                         {
                             OcTreeKey neighbor_key;
 
-                            m_color_octree->coordToKeyChecked(neighbor_point, m_parameters->depth, neighbor_key);
+                            m_color_octree->coordToKeyChecked(neighbor_point, m_parameters.depth, neighbor_key);
 
                             if (checked_points.find(neighbor_key) == checked_points.end())
                             {
-                                if (NodePtr node = m_color_octree->search(neighbor_key, m_parameters->depth); node == nullptr)
+                                if (NodePtr node = m_color_octree->search(neighbor_key, m_parameters.depth); node == nullptr)
                                 {
                                     if (points_to_add.find(neighbor_key) == points_to_add.end()) 
                                     {
@@ -474,7 +474,7 @@ namespace rpo
 
         normal_estimation.setInputCloud(octree_points);
         normal_estimation.setSearchMethod(kdtree);
-        normal_estimation.setRadiusSearch(2 * m_parameters->resolution);
+        normal_estimation.setRadiusSearch(2 * m_parameters.resolution);
         normal_estimation.compute(*octree_normals);
 
         for (size_t i = 0; i < octree_points->size(); ++i)
@@ -483,7 +483,7 @@ namespace rpo
 
             const point3d point(pcl_point.data[0], pcl_point.data[1], pcl_point.data[2]);
 
-            if (OcTreeKey key; m_color_octree->coordToKeyChecked(point, m_parameters->depth, key))
+            if (OcTreeKey key; m_color_octree->coordToKeyChecked(point, m_parameters.depth, key))
             {
                 const pcl::Normal normal = octree_normals->at(i);
 
@@ -495,12 +495,12 @@ namespace rpo
 
     void AugmentedModel::computePlanes()
     {
-        const float resolution = m_parameters->resolution;
+        const float resolution = m_parameters.resolution;
 
-        const int depth = m_parameters->depth;
+        const int depth = m_parameters.depth;
 
         // Modifies surface normals on horizontal surfaces
-        if (m_parameters->modify_normals)
+        if (m_parameters.modify_normals)
         {
             for (const auto& element : m_reachable_elements)
             {
@@ -609,7 +609,7 @@ namespace rpo
                 
             point3d point = m_color_octree->keyToCoord(element, depth);
 
-            if ((angle_to_vertical < M_PI / 18.0 || angle_to_vertical > (M_PI * 17.0 / 18.0)) && point.z() > m_parameters->ground_level)
+            if ((angle_to_vertical < M_PI / 18.0 || angle_to_vertical > (M_PI * 17.0 / 18.0)) && point.z() > m_parameters.ground_level)
             {
                 m_horizontal_elements.insert(element);
             }
@@ -632,7 +632,7 @@ namespace rpo
         for (ColorOcTree::tree_iterator it = m_color_octree->begin_tree(), 
             end = m_color_octree->end_tree(); it != end; ++it)
         {
-            if (it.getDepth() == m_parameters->precomputation_grid_depth &&
+            if (it.getDepth() == m_parameters.precomputation_grid_depth &&
                 grid_elements.find(it.getKey()) == grid_elements.end())
             {
                 grid_elements.insert(it.getKey());
@@ -641,13 +641,13 @@ namespace rpo
 
         for (const auto& key : grid_elements)
         {
-            point3d grid_point = m_color_octree->keyToCoord(key, m_parameters->depth);
+            point3d grid_point = m_color_octree->keyToCoord(key, m_parameters.depth);
 
-            grid_point.z() = m_parameters->ground_level;
+            grid_point.z() = m_parameters.ground_level;
 
             OcTreeKey grid_key;
 
-            m_color_octree->coordToKeyChecked(grid_point, m_parameters->depth, grid_key);
+            m_color_octree->coordToKeyChecked(grid_point, m_parameters.depth, grid_key);
 
             if (m_ground_zone_elements.find(grid_key) != m_ground_zone_elements.end())
             {
@@ -660,7 +660,7 @@ namespace rpo
 
     bool AugmentedModel::isInsideBoundaries(const point3d& point, int step) const
     {
-        const float resolution = m_parameters->resolution;
+        const float resolution = m_parameters.resolution;
 
         bool inside = false;
 
@@ -752,9 +752,9 @@ namespace rpo
 
     bool AugmentedModel::isElementOfGroundLevel(double x, double y) const
     {
-        const point3d point(x, y, m_parameters->ground_level);
+        const point3d point(x, y, m_parameters.ground_level);
 
-        if (OcTreeKey key; m_color_octree->coordToKeyChecked(point, m_parameters->depth, key))
+        if (OcTreeKey key; m_color_octree->coordToKeyChecked(point, m_parameters.depth, key))
         {
             if (isGroundLevelElement(key))
             {
@@ -1011,7 +1011,7 @@ namespace rpo
         double max_range, double resolution, bool ignore_unknown) const
     {
         if (castRay(origin, direction, target_point, end_point, true, 
-            max_range, m_parameters->depth, resolution))
+            max_range, m_parameters.depth, resolution))
         {
             if (!good && !evaluateRayCast(target_point, end_point) ||
                  good &&  evaluateRayCast(target_point, end_point))
@@ -1028,8 +1028,8 @@ namespace rpo
     {
         OcTreeKey target_key, end_key;
 
-        coordToKeyChecked(target_point, m_parameters->depth, target_key);
-        coordToKeyChecked(end_point, m_parameters->depth, end_key);
+        coordToKeyChecked(target_point, m_parameters.depth, target_key);
+        coordToKeyChecked(end_point, m_parameters.depth, end_key);
 
         return (target_key == end_key);
     }
@@ -1051,12 +1051,12 @@ namespace rpo
 
     void AugmentedModel::createNode(const point3d& point, const Color& color)
     {
-        NodePtr node = m_color_octree->search(point, m_parameters->depth);
+        NodePtr node = m_color_octree->search(point, m_parameters.depth);
 
-        if (node != nullptr)
+        if (node == nullptr)
         {
             m_color_octree->updateNode(point, true);
-            node = m_color_octree->search(point, m_parameters->depth);
+            node = m_color_octree->search(point, m_parameters.depth);
         }
 
         if (node != nullptr)
